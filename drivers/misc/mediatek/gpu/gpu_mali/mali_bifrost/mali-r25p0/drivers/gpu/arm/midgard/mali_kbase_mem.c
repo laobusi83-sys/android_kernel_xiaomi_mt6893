@@ -362,6 +362,7 @@ int kbase_remove_va_region(struct kbase_va_region *reg)
 	struct rb_node *rbnext;
 	struct kbase_va_region *next = NULL;
 	struct rb_root *reg_rbtree = NULL;
+	struct kbase_va_region *orig_reg = reg;
 
 	int merged_front = 0;
 	int merged_back = 0;
@@ -423,8 +424,15 @@ int kbase_remove_va_region(struct kbase_va_region *reg)
 		rb_replace_node(&(reg->rblink), &(free_reg->rblink), reg_rbtree);
 	}
 
- out:
+/* This operation is always safe because the function never frees
+	 * the region. If the region has been merged to both front and back,
+	 * then it's the previous region that is supposed to be freed.
+	 */
+	orig_reg->start_pfn = 0;
+
+out:
 	return err;
+
 }
 
 KBASE_EXPORT_TEST_API(kbase_remove_va_region);
@@ -4628,11 +4636,7 @@ void kbase_unmap_external_resource(struct kbase_context *kctx, struct kbase_va_r
 						kctx->as_nr);
 			}
 
-<<<<<<< HEAD
-			if (reg && ((reg->flags & KBASE_REG_GPU_WR) == 0))
-=======
 			if ((reg->flags & (KBASE_REG_CPU_WR | KBASE_REG_GPU_WR)) == 0)
->>>>>>> b2e8cd34386d ([ALPS07589161] GPU: GPUSWERRATA-1431 for CVE-2022-36449)
 				writeable = false;
 
 			kbase_jd_user_buf_unmap(kctx, alloc, reg, writeable);
