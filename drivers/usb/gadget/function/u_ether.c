@@ -1305,7 +1305,6 @@ struct eth_dev *gether_setup_name(struct usb_gadget *g,
 		   dev->host_mac[2], dev->host_mac[3],
 		   dev->host_mac[4], dev->host_mac[5]);
 #endif
-
 	if (ethaddr)
 		memcpy(ethaddr, dev->host_mac, ETH_ALEN);
 

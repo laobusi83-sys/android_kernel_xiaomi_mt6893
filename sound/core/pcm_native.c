@@ -755,7 +755,6 @@ static int snd_pcm_hw_params(struct snd_pcm_substream *substream,
 			size = PAGE_ALIGN(size);
 		memset(runtime->dma_area, 0, size);
 	}
-
 	snd_pcm_timer_resolution_change(substream);
 	snd_pcm_set_state(substream, SNDRV_PCM_STATE_SETUP);
 
