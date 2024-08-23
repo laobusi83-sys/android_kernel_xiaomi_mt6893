@@ -1,7 +1,15 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2015-2019, MICROTRUST Incorporated
  * Copyright (C) 2015 Google, Inc.
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
  */
 
@@ -20,9 +28,6 @@
 #include <linux/seq_file.h>
 
 #include <teei_client_main.h>
-#ifdef CONFIG_MTK_TEE_SANITY
-#include <tee_sanity.h>
-#endif
 #include "tz_log.h"
 #include "nt_smc_call.h"
 #include "notify_queue.h"
@@ -33,13 +38,12 @@
 #define TEE_LOG_TYPE	0x10
 
 struct tz_log_state *g_tz_log_state;
-
-#ifdef CONFIG_MICROTRUST_TZ_LOG
 static struct completion teei_log_comp;
 
 int init_tlog_comp_fn(void)
 {
 	init_completion(&teei_log_comp);
+
 	return 0;
 }
 
@@ -48,7 +52,6 @@ void teei_notify_log_fn(void)
 	if (!completion_done(&teei_log_comp))
 		complete(&teei_log_comp);
 }
-#endif
 
 static int __tz_driver_read_logs(struct tz_log_state *s, char *buffer,
 				uint32_t get, unsigned int cnt)
@@ -176,7 +179,10 @@ static void tz_driver_dump_logs(struct tz_log_state *s)
 		 * if log level >= KERN_INFO)
 		 */
 
-		IMSG_PRINTK("[TZ_LOG] %s", s->line_buffer);
+		if (likely(is_teei_ready()))
+			IMSG_PRINTK("[TZ_LOG] %s", s->line_buffer);
+		else
+			IMSG_PRINTK("[TZ_LOG] %s", s->line_buffer);
 
 		/*
 		 * Dump early log to boot log buffer
@@ -203,14 +209,15 @@ static void tz_driver_dump_logs(struct tz_log_state *s)
 	s->get = get;
 }
 
-#ifdef CONFIG_MICROTRUST_TZ_LOG
 int teei_log_fn(void *work)
 {
 	int retVal = 0;
+#ifdef CONFIG_MICROTRUST_TZ_LOG
 	struct tz_log_state *s;
 	unsigned long flags;
 
 	s = g_tz_log_state;
+#endif
 
 	while (1) {
 		if (switch_input_index == switch_output_index) {
@@ -220,13 +227,15 @@ int teei_log_fn(void *work)
 				continue;
 		}
 
+#ifdef CONFIG_MICROTRUST_TZ_LOG
 		msleep(20);
 		tz_driver_dump_logs(s);
+#endif
+
 	}
 
 	return NOTIFY_OK;
 }
-#endif
 
 static int tz_log_panic_notify(struct notifier_block *nb,
 				   unsigned long action, void *data)
