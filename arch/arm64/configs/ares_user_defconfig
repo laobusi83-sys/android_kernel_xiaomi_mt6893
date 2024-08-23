@@ -4872,7 +4872,7 @@ CONFIG_TEE=y
 #
 # TEE drivers
 #
-# CONFIG_OPTEE is not set
+CONFIG_OPTEE=y
 
 #
 # Near Field Communication (NFC) devices
