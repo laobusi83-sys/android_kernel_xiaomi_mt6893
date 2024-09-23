@@ -173,7 +173,7 @@ static int vma_is_ion_node(struct vm_area_struct *vma)
 		return 0;
 
 	file = vma->vm_file;
-	if (!file || !is_dma_buf_file(file))
+	if (!file)
 		return 0;
 
 	dmabuf = vma->vm_private_data;

@@ -2767,7 +2767,7 @@ struct ion_buffer *ion_drv_file_to_buffer(struct file *file)
 	struct dma_buf *dmabuf;
 	struct ion_buffer *buffer = NULL;
 
-	if (!file || !is_dma_buf_file(file))
+	if (!file)
 		goto file2buf_exit;
 
 	dmabuf = file->private_data;
