@@ -16,5 +16,12 @@
 / {
         model = "CHOPIN";
         compatible = "mediatek,MT6891";
+
+	bootargs = "console=tty0 console=ttyS0,921600n1 root=/dev/ram \
+	vmalloc=400M slub_debug=OFZPU swiotlb=noforce \ 
+	cgroup.memory=nosocket,nokmem \
+	androidboot.selinux=permissive \
+	page_owner=on nodebugmon loop.max_part=7";
+	kaslr-seed = <0 0>;
 };
 
