@@ -4957,11 +4957,7 @@ void kbase_unmap_external_resource(struct kbase_context *kctx, struct kbase_va_r
 						kctx->as_nr);
 			}
 
-<<<<<<< HEAD
-			if (reg && ((reg->flags & KBASE_REG_GPU_WR) == 0))
-=======
 			if ((reg->flags & (KBASE_REG_CPU_WR | KBASE_REG_GPU_WR)) == 0)
->>>>>>> af64e72259bb ([ALPS07589161] GPU: GPUSWERRATA-1431 for CVE-2022-36449)
 				writeable = false;
 
 			kbase_jd_user_buf_unmap(kctx, alloc, reg, writeable);
