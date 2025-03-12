@@ -106,8 +106,8 @@ static int fops_vcodec_open(struct file *file)
 
 		if (vcu_compare_version(dev->vcu_plat_dev,
 			MTK_VCU_FW_VERSION) != 0) {
-			mtk_v4l2_err("Invalid vcu firmware, should be %s!",
-						 MTK_VCU_FW_VERSION);
+			mtk_v4l2_err("Invalid vcu firmware, should be %s!, Current: %d",
+						 MTK_VCU_FW_VERSION,mtk_vcu_get_fw_version(vcu));
 			ret = -EPERM;
 			goto err_load_fw;
 		}
