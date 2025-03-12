@@ -1208,10 +1208,14 @@ EXPORT_SYMBOL_GPL(vcu_get_plat_device);
 
 int vcu_load_firmware(struct platform_device *pdev)
 {
+	struct mtk_vcu *vcu = platform_get_drvdata(pdev);
+
 	if (pdev == NULL) {
 		dev_err(&pdev->dev, "[VCU] VCU platform device is invalid\n");
 		return -EINVAL;
 	}
+	
+	pr_info("Current VCU Firmware Version: %u", vcu->run.fw_ver);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(vcu_load_firmware);
