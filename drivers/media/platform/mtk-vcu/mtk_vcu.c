@@ -1216,6 +1216,15 @@ int vcu_load_firmware(struct platform_device *pdev)
 }
 EXPORT_SYMBOL_GPL(vcu_load_firmware);
 
+int mtk_vcu_get_fw_version(struct mtk_vcu *vcu)
+{
+	    if (!vcu)
+		     return -1;
+
+	    return vcu->run.fw_ver;
+}	    
+
+
 int vcu_compare_version(struct platform_device *pdev,
 			const char *expected_version)
 {

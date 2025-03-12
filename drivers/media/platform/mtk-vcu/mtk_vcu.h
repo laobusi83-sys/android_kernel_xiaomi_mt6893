@@ -156,6 +156,11 @@ enum vcu_codec_type {
 	VCU_CODEC_MAX
 };
 
+struct mtk_vcu; // Forward declaration
+
+/* mtk_vcu_get_fw_version - retrives fw ver of VPU */
+int mtk_vcu_get_fw_version(struct mtk_vcu *vcu);
+
 /**
  * vcu_ipi_register - register an ipi function
  *
