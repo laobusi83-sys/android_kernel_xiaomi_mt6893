@@ -1,15 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2017 MediaTek Inc.
- * Author: Yunfei Dong <yunfei.dong@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include "mtk_vcodec_mem.h"
@@ -363,7 +354,7 @@ void vcu_io_buffer_cache_sync(struct device *dev,
 	buf_att = dma_buf_attach(dbuf, dev);
 	sgt = dma_buf_map_attachment(buf_att, op);
 	if (IS_ERR_OR_NULL(sgt)) {
-		pr_info("%s dma_buf_map_attachment fail %d.\n", __func__, sgt);
+		pr_info("%s dma_buf_map_attachment fail %p.\n", __func__, sgt);
 		dma_buf_detach(dbuf, buf_att);
 		return;
 	}
