@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2016 MediaTek Inc.
- * Author: Tiffany Lin <tiffany.lin@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/clk.h>
 #include <linux/of_address.h>
@@ -99,7 +90,6 @@ struct temp_job {
 	int bitratemode;
 	long long submit;
 	int kcy;
-	struct mtk_vcodec_dev *dev;
 	struct temp_job *next;
 };
 static struct temp_job *temp_venc_jobs[CORE_NUM];
@@ -121,7 +111,6 @@ struct temp_job *new_job_from_info(struct mtk_vcodec_ctx *ctx, int core_id)
 	new_job->submit = 0; /* use now - to be filled */
 	new_job->kcy = 0; /* retrieve hw counter - to be filled */
 	new_job->next = 0;
-	new_job->dev = ctx->dev;
 	return new_job;
 }
 
@@ -176,6 +165,7 @@ void mtk_venc_init_ctx_pm(struct mtk_vcodec_ctx *ctx)
 {
 	ctx->async_mode = 1;
 
+#ifdef CONFIG_MTK_SLBC
 	ctx->sram_data.uid = UID_MM_VENC;
 	ctx->sram_data.type = TP_BUFFER;
 	ctx->sram_data.size = 0;
@@ -186,6 +176,7 @@ void mtk_venc_init_ctx_pm(struct mtk_vcodec_ctx *ctx)
 	else
 		ctx->use_slbc = 0;
 	pr_debug("slbc_request %d, %p\n", &ctx->sram_data, ctx->use_slbc);
+#endif
 }
 
 int mtk_vcodec_init_enc_pm(struct mtk_vcodec_dev *mtkdev)
@@ -247,10 +238,12 @@ void mtk_vcodec_release_enc_pm(struct mtk_vcodec_dev *mtkdev)
 
 void mtk_venc_deinit_ctx_pm(struct mtk_vcodec_ctx *ctx)
 {
+#ifdef CONFIG_MTK_SLBC
 	if (ctx->use_slbc == 1) {
 		pr_debug("slbc_release, %p\n", &ctx->sram_data);
 		slbc_release(&ctx->sram_data);
 	}
+#endif
 }
 
 void mtk_vcodec_enc_clock_on(struct mtk_vcodec_ctx *ctx, int core_id)
@@ -282,11 +275,13 @@ void mtk_vcodec_enc_clock_on(struct mtk_vcodec_ctx *ctx, int core_id)
 	}
 	time_check_end(MTK_FMT_ENC, core_id, 50);
 #endif
+#ifdef CONFIG_MTK_SLBC
 	if (ctx->use_slbc == 1) {
 		time_check_start(MTK_FMT_ENC, core_id);
 		ret = slbc_power_on(&ctx->sram_data);
 		time_check_end(MTK_FMT_ENC, core_id, 50);
 	}
+#endif
 
 #ifdef CONFIG_MTK_PSEUDO_M4U
 	time_check_start(MTK_FMT_ENC, core_id);
@@ -302,11 +297,13 @@ void mtk_vcodec_enc_clock_on(struct mtk_vcodec_ctx *ctx, int core_id)
 	for (i = 0; i < larb_port_num; i++) {
 		if (i == 5 || i == 6 || i == 13 ||
 			i == 14 || i == 21 || i == 22) {
-			ret = smi_sysram_enable(MTK_M4U_ID(larb_id, i),
-				true, "LARB_VENC");
+#if IS_ENABLED(CONFIG_MTK_SMI_EXT)
+			ret = smi_sysram_enable(MTK_M4U_ID(larb_id, i), true, "LARB_VENC");
 			if (ret)
-				mtk_v4l2_err("%#x is not ready err: %#x\n",
-					i, ret);
+				mtk_v4l2_err("%#x is not ready err: %#x\n", i, ret);
+#else
+			smi_sysram_enable(MTK_M4U_ID(larb_id, i), true, "LARB_VENC");
+#endif
 		} else {
 			port.ePortID = MTK_M4U_ID(larb_id, i);
 			port.Direction = 0;
@@ -326,8 +323,10 @@ void mtk_vcodec_enc_clock_off(struct mtk_vcodec_ctx *ctx, int core_id)
 {
 	struct mtk_vcodec_pm *pm = &ctx->dev->pm;
 
+#ifdef CONFIG_MTK_SLBC
 	if (ctx->use_slbc == 1)
 		slbc_power_off(&ctx->sram_data);
+#endif
 
 #ifndef FPGA_PWRCLK_API_DISABLE
 	if (core_id == MTK_VENC_CORE_0 ||
@@ -510,9 +509,9 @@ void mtk_venc_dvfs_begin(struct temp_job **job_list)
 	} else if (area >= 1920 * 1080) {
 		if (job->operation_rate > 30) {
 			if (job->format == V4L2_PIX_FMT_H265)
-				idx = 0;
+				idx = 1;
 			else /* H.264 */
-				idx = 0;
+				idx = 2;
 		} else {
 			if (job->bitratemode == 1) /* CBR */
 				idx = 1;
@@ -528,9 +527,6 @@ void mtk_venc_dvfs_begin(struct temp_job **job_list)
 		idx = 2;
 	else if (job->operation_rate >= 120)
 		idx = 0;
-
-	if (job->dev != NULL && job->dev->enc_cnt > 1)
-		idx = 2;
 
 	if (job->format == V4L2_PIX_FMT_HEIF)
 		idx = 3;

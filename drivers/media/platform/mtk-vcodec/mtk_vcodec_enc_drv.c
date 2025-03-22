@@ -1,17 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
-* Copyright (c) 2016 MediaTek Inc.
-* Author: PC Chen <pc.chen@mediatek.com>
-*       Tiffany Lin <tiffany.lin@mediatek.com>
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-* GNU General Public License for more details.
-*/
+ * Copyright (c) 2019 MediaTek Inc.
+ */
 
 #include <linux/slab.h>
 #include <linux/module.h>
@@ -60,7 +50,10 @@ static int fops_vcodec_open(struct file *file)
 	 * used for logging.
 	 */
 	ctx->enc_flush_buf = mtk_buf;
-	ctx->id = dev->id_counter++;
+	dev->id_counter++;
+	if (dev->id_counter == 0)
+		dev->id_counter++;
+	ctx->id = dev->id_counter;
 	v4l2_fh_init(&ctx->fh, video_devdata(file));
 	file->private_data = &ctx->fh;
 	v4l2_fh_add(&ctx->fh);
@@ -172,7 +165,7 @@ static const struct v4l2_file_operations mtk_vcodec_fops = {
 };
 
 /**
- * Suspsend callbacks after user space processes are frozen
+ * Suspend callbacks after user space processes are frozen
  * Since user space processes are frozen, there is no need and cannot hold same
  * mutex that protects lock owner while checking status.
  * If video codec hardware is still active now, must not to enter suspend.
@@ -263,7 +256,7 @@ static int mtk_vcodec_enc_probe(struct platform_device *pdev)
 
 	ret = mtk_vcodec_init_enc_pm(dev);
 	if (ret < 0) {
-		dev_err(&pdev->dev, "Failed to get mt vcodec clock source!");
+		dev_info(&pdev->dev, "Failed to get mt vcodec clock source!");
 		return ret;
 	}
 
@@ -414,9 +407,12 @@ static const struct of_device_id mtk_vcodec_enc_match[] = {
 	{.compatible = "mediatek,mt6885-vcodec-enc",},
 	{.compatible = "mediatek,mt6873-vcodec-enc",},
 	{.compatible = "mediatek,mt6853-vcodec-enc",},
+	{.compatible = "mediatek,mt6779-vcodec-enc",},
 	{.compatible = "mediatek,mt6833-vcodec-enc",},
 	{.compatible = "mediatek,mt6877-vcodec-enc",},
 	{.compatible = "mediatek,mt6781-vcodec-enc",},
+	{.compatible = "mediatek,mt6768-vcodec-enc",},
+	{.compatible = "mediatek,mt6785-vcodec-enc",},
 	{.compatible = "mediatek,venc_gcon",},
 	{},
 };

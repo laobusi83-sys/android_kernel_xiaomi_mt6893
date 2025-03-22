@@ -11,6 +11,9 @@ ifeq (y, $(filter y, $(CONFIG_MACH_MT6781)))
 MTK_PLATFORM := mt6781
 endif
 
+CONFIG_MTK_SLBC := yes
+export CONFIG_MTK_SLBC
+
 obj-$(CONFIG_VIDEO_MEDIATEK_VCODEC) += mtk-vcodec-dec.o \
 				       mtk-vcodec-enc.o \
 				       mtk-vcodec-common.o \

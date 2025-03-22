@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2016 MediaTek Inc.
- * Author: Tiffany Lin <tiffany.lin@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #include <linux/clk.h>
 #include <linux/of_address.h>
@@ -83,6 +74,7 @@ static struct ion_client *ion_vdec_client;
 void mtk_dec_init_ctx_pm(struct mtk_vcodec_ctx *ctx)
 {
 	ctx->input_driven = 0;
+	ctx->user_lock_hw = 1;
 }
 
 int mtk_vcodec_init_dec_pm(struct mtk_vcodec_dev *mtkdev)
@@ -185,6 +177,10 @@ void mtk_vcodec_dec_clock_on(struct mtk_vcodec_pm *pm, int hw_id)
 				ret);
 	} else if (hw_id == MTK_VDEC_LAT) {
 		smi_bus_prepare_enable(SMI_LARB5, "VDEC_LAT");
+		ret = clk_prepare_enable(pm->clk_MT_CG_SOC);
+		if (ret)
+			mtk_v4l2_err("clk_prepare_enable VDEC_SOC fail %d",
+				ret);
 		ret = clk_prepare_enable(pm->clk_MT_CG_VDEC1);
 		if (ret)
 			mtk_v4l2_err("clk_prepare_enable VDEC_LAT fail %d",
@@ -285,6 +281,7 @@ void mtk_vcodec_dec_clock_off(struct mtk_vcodec_pm *pm, int hw_id)
 		smi_bus_disable_unprepare(SMI_LARB4, "VDEC_CORE");
 	} else if (hw_id == MTK_VDEC_LAT) {
 		clk_disable_unprepare(pm->clk_MT_CG_VDEC1);
+		clk_disable_unprepare(pm->clk_MT_CG_SOC);
 		smi_bus_disable_unprepare(SMI_LARB5, "VDEC_LAT");
 	} else
 		mtk_v4l2_err("invalid hw_id %d", hw_id);
