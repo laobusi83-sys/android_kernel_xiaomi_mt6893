@@ -18,8 +18,11 @@ function compile()
     elif [ "$1" = "--chopin" ]; then
         export DEVICE=chopin
         export DEFCONFIG=chopin_user_defconfig
-    else
-        echo "Usage: $0 [--ares | --chopin]"
+    elif [ "$1" = "--agate" ]; then
+	export DEVICE=agate
+        export DEFCONFIG=agate_user_defconfig	
+else
+        echo "Usage: $0 [--ares | --chopin| --agate]"
         exit 1
     fi
 
@@ -54,6 +57,7 @@ function zupload()
     cp out/arch/arm64/boot/Image.gz-dtb AnyKernel
     cd AnyKernel
     zip -r9 4.14.336-Test-OSS-KERNEL-$DEVICE-VIC.zip *
+    cd ..
     bash upload.sh AnyK*/*.zip
 }
 
