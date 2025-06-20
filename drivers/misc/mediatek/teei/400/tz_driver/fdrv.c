@@ -3,8 +3,7 @@
  * Copyright (c) 2015-2019, MICROTRUST Incorporated
  * All Rights Reserved.
  *
- */
-
+*/
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/semaphore.h>
@@ -94,6 +93,10 @@ int fdrv_notify(struct teei_fdrv *fdrv)
 	int retVal = 0;
 
 	wait_completion = kmalloc(sizeof(struct completion), GFP_KERNEL);
+	if (wait_completion == NULL) {
+		IMSG_ERROR("TEEI: Failed to kmalloc\n");
+		return -ENOMEM;
+	}
 
 	init_completion(wait_completion);
 

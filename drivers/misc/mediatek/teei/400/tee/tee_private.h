@@ -3,6 +3,7 @@
  * Copyright (c) 2015-2016, Linaro Limited
  * Copyright (c) 2015-2019, MICROTRUST Incorporated
  *
+ *
  */
 #ifndef TEE_PRIVATE_H
 #define TEE_PRIVATE_H
@@ -143,5 +144,4 @@ extern int tee_k_open(struct file *filp);
 extern int tee_k_release(struct file *filp);
 
 extern struct tee_device *isee_get_teedev(void);
-
 #endif /*TEE_PRIVATE_H*/

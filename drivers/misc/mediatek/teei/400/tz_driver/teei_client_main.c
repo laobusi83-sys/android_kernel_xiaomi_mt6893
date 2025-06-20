@@ -20,6 +20,7 @@
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/of_platform.h>
+#include <linux/sched.h>
 
 #define TEEI_SWITCH_BIG_CORE
 
@@ -31,9 +32,9 @@
 #include <uapi/linux/sched/types.h>
 #endif
 
-#ifdef CONFIG_MTPROF
+#if IS_ENABLED(CONFIG_MTPROF)
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-#include <linux/bootprof.h>
+//#include "linux/bootprof.h"
 #else
 #include "bootprof.h"
 #endif /* KERNEL_VERSION */
@@ -50,15 +51,19 @@
 #include <fdrv.h>
 #include <backward_driver.h>
 #include <teei_fp.h>
-#include <tz_log.h>
+#include "tz_log.h"
 #include <utos_version.h>
 #include <sysfs.h>
 #include <teei_keymaster.h>
 #include <irq_register.h>
 #include <../teei_fp/fp_func.h>
-#include "tz_log.h"
 
-#if (CONFIG_MICROTRUST_TZ_DRIVER_MTK_BOOTPROF && CONFIG_MTPROF)
+#if IS_ENABLED(CONFIG_MTK_TEE_GP_COORDINATOR)
+	extern bool register_gp_api(void);
+#endif
+
+#if IS_ENABLED(CONFIG_MICROTRUST_TZ_DRIVER_MTK_BOOTPROF) && IS_ENABLED(CONFIG_MTPROF)
+
 #if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
 #define TEEI_BOOT_FOOTPRINT(str) bootprof_log_boot(str)
 #else
@@ -66,6 +71,7 @@
 #endif
 
 #else
+
 #define TEEI_BOOT_FOOTPRINT(str) IMSG_PRINTK("%s\n", str)
 #endif
 
@@ -81,8 +87,8 @@ DECLARE_SEMA(pm_sema, 0);
 
 DECLARE_COMPLETION(boot_decryto_lock);
 
-#ifndef CONFIG_MICROTRUST_DYNAMIC_CORE
-#define TZ_PREFER_BIND_CORE (7)
+#if !IS_ENABLED(CONFIG_MICROTRUST_DYNAMIC_CORE)
+#define TZ_PREFER_BIND_CORE (6)
 #endif
 
 #define TEEI_RT_POLICY			(0x01)
@@ -159,9 +165,8 @@ char *teei_boot_error_to_string(uint32_t id)
 
 struct workqueue_struct *secure_wq;
 
+#if !IS_ENABLED(CONFIG_MICROTRUST_DYNAMIC_CORE)
 static int current_cpu_id;
-
-#ifndef CONFIG_MICROTRUST_DYNAMIC_CORE
 #if KERNEL_VERSION(4, 14, 0) >= LINUX_VERSION_CODE
 static int tz_driver_cpu_callback(struct notifier_block *nfb,
 		unsigned long action, void *hcpu);
@@ -189,12 +194,12 @@ static dev_t teei_config_device_no;
 static struct cdev teei_config_cdev;
 static struct class *config_driver_class;
 
-struct timeval stime;
-struct timeval etime;
 struct task_struct *teei_switch_task;
 struct task_struct *teei_bdrv_task;
 struct task_struct *teei_log_task;
+#if !IS_ENABLED(CONFIG_MICROTRUST_DYNAMIC_CORE)
 static struct cpumask mask = { CPU_BITS_NONE };
+#endif
 static struct class *driver_class;
 static dev_t teei_client_device_no;
 static struct cdev teei_client_cdev;
@@ -204,20 +209,26 @@ DEFINE_KTHREAD_WORKER(ut_fastcall_worker);
 
 static struct tz_driver_state *tz_drv_state;
 static void *teei_cpu_write_owner;
+static struct platform_device *g_teei_pdev;
 
 int teei_set_switch_pri(unsigned long policy)
 {
+#ifdef DYNAMIC_SET_PRIORITY
+	struct sched_param param = {.sched_priority = 50 };
 	int retVal = 0;
 
 	if (policy == TEEI_RT_POLICY) {
 		if (teei_switch_task != NULL) {
-			set_user_nice(teei_switch_task, MIN_NICE);
+			sched_setscheduler_nocheck(teei_switch_task,
+						SCHED_FIFO, &param);
 			return 0;
 		} else
 			return -EINVAL;
 	} else if (policy == TEEI_NORMAL_POLICY) {
 		if (teei_switch_task != NULL) {
-			set_user_nice(teei_switch_task, 0);
+			param.sched_priority = 0;
+			sched_setscheduler_nocheck(teei_switch_task,
+						SCHED_NORMAL, &param);
 			return 0;
 		} else
 			return -EINVAL;
@@ -228,6 +239,9 @@ int teei_set_switch_pri(unsigned long policy)
 	}
 
 	return retVal;
+#else
+	return 0;
+#endif
 }
 
 void teei_cpus_read_lock(void)
@@ -244,14 +258,18 @@ void teei_cpus_read_unlock(void)
 
 void teei_cpus_write_lock(void)
 {
+#ifdef ISEE_FP_SINGLE_CHANNEL
 	cpus_write_lock();
 	teei_cpu_write_owner = current;
+#endif
 }
 
 void teei_cpus_write_unlock(void)
 {
+#ifdef ISEE_FP_SINGLE_CHANNEL
 	teei_cpu_write_owner = NULL;
 	cpus_write_unlock();
+#endif
 }
 
 struct tz_driver_state *get_tz_drv_state(void)
@@ -289,17 +307,12 @@ int teei_move_cpu_context(int target_cpu_id, int original_cpu_id)
 	return 0;
 }
 
-void set_current_cpuid(int cpu)
-{
-	current_cpu_id = cpu;
-}
+#if !IS_ENABLED(CONFIG_MICROTRUST_DYNAMIC_CORE)
 
 int get_current_cpuid(void)
 {
 	return current_cpu_id;
 }
-
-#ifndef CONFIG_MICROTRUST_DYNAMIC_CORE
 
 static bool is_prefer_core(int cpu)
 {
@@ -416,6 +429,7 @@ static int nq_cpu_up_prep(unsigned int cpu)
 	return 0;
 #endif
 }
+
 
 static int nq_cpu_down_prep(unsigned int cpu)
 {
@@ -617,8 +631,12 @@ static int init_teei_framework(void)
 
 	teei_cpus_read_lock();
 
+	TEEI_BOOT_FOOTPRINT("TEEI BOOT STAGE1 GOT CPU READ LOCK");
+
 	boot_stage1((unsigned long)virt_to_phys((void *)boot_vfs_addr),
 						(unsigned long)tz_log_buf_pa);
+
+	TEEI_BOOT_FOOTPRINT("TEEI BOOT STAGE1 RETURN FROM TEE");
 
 	teei_cpus_read_unlock();
 
@@ -691,7 +709,7 @@ static int init_teei_framework(void)
 
 	teei_config_flag = 1;
 
-#ifdef CONFIG_MICROTRUST_FP_DRIVER
+#if IS_ENABLED(CONFIG_MICROTRUST_FP_DRIVER)
 	wake_up(&__fp_open_wq);
 #endif
 	TEEI_BOOT_FOOTPRINT("TEEI BOOT All Completed");
@@ -741,6 +759,11 @@ static long teei_config_ioctl(struct file *file,
 			long res;
 			int i;
 
+			if (arg == 0) {
+				IMSG_ERROR("arg is null\n");
+				return -EINVAL;
+			}
+
 			res = copy_from_user(&param, (void *)arg,
 					sizeof(struct init_param));
 			if (res) {
@@ -766,6 +789,7 @@ static long teei_config_ioctl(struct file *file,
 
 			teei_ta_flags = param.flag;
 			for (i = 0; i < param.uuid_count; i++) {
+				param.uuids[i][UUID_LEN] = 0;
 				if ((teei_ta_flags >> i) & (0x01))
 					tz_load_ta_by_str(param.uuids[i]);
 				else
@@ -945,7 +969,7 @@ void show_utdriver_lock_status(void)
 
 	IMSG_PRINTK("[%s][%d] how_utdriver_lock_status begin.\n",
 							__func__, __LINE__);
-#ifdef CONFIG_MICROTRUST_FP_DRIVER
+#if IS_ENABLED(CONFIG_MICROTRUST_FP_DRIVER)
 	retVal = down_trylock(&fp_api_lock);
 	if (retVal == 1)
 		IMSG_PRINTK("[%s][%d] fp_api_lock is down\n",
@@ -1017,16 +1041,12 @@ static int teei_probe(struct platform_device *pdev)
 	ut_irq = platform_get_irq(pdev, 0);
 	IMSG_INFO("teei device ut_irq is %d\n", ut_irq);
 
-	if (init_sysfs(pdev) < 0) {
-		IMSG_ERROR("failed to init tz_driver sysfs\n");
-		return -1;
-	}
-
 	if (register_ut_irq_handler(ut_irq) < 0) {
 		IMSG_ERROR("teei_device can't register irq %d\n", ut_irq);
 		return -1;
 	}
 
+	g_teei_pdev = pdev;
 	return 0;
 }
 
@@ -1062,8 +1082,10 @@ static struct platform_driver teei_driver = {
  */
 static int teei_client_init(void)
 {
+	int ret = 0;
 	int ret_code = 0;
 	struct device *class_dev = NULL;
+	struct device_node *np = NULL;
 
 	struct sched_param param = {.sched_priority = 50 };
 
@@ -1133,6 +1155,21 @@ static int teei_client_init(void)
 		goto class_device_destroy;
 	}
 
+	if (g_teei_pdev != NULL) {
+		np = g_teei_pdev->dev.of_node;
+
+		ret = of_property_read_u32(np, "microtrust,real-drv", &ret_code);
+		if (ret || !ret_code) {
+			IMSG_INFO("MICROTRUST device is NOT enable.\n");
+			ret_code = 0;
+			goto del_cdev;
+		}
+	} else {
+		IMSG_ERROR("teei_probe NOT get the pdev.\n");
+		ret_code = 0;
+		goto del_cdev;
+	}
+
 	init_teei_switch_comp();
 	teei_init_task_link();
 
@@ -1154,7 +1191,7 @@ static int teei_client_init(void)
 		goto class_device_destroy;
 	}
 
-#ifndef CONFIG_MICROTRUST_DYNAMIC_CORE
+#if !IS_ENABLED(CONFIG_MICROTRUST_DYNAMIC_CORE)
 	teei_cpus_write_lock();
 #ifdef TEEI_SWITCH_BIG_CORE
 	if (cpu_online(TZ_PREFER_BIND_CORE)) {
@@ -1170,7 +1207,7 @@ static int teei_client_init(void)
 	/* sched_setscheduler_nocheck(teei_switch_task, SCHED_FIFO, &param); */
 	wake_up_process(teei_switch_task);
 
-#ifndef CONFIG_MICROTRUST_DYNAMIC_CORE
+#if !IS_ENABLED(CONFIG_MICROTRUST_DYNAMIC_CORE)
 
 #if KERNEL_VERSION(4, 14, 0) <= LINUX_VERSION_CODE
 	cpuhp_setup_state_nocalls(CPUHP_AP_ONLINE_DYN,
@@ -1192,7 +1229,7 @@ static int teei_client_init(void)
 		IMSG_ERROR("create bdrv thread failed: %ld\n",
 						PTR_ERR(teei_bdrv_task));
 		teei_bdrv_task = NULL;
-		goto class_device_destroy;
+		goto teei_switch_destroy;
 	}
 
 	param.sched_priority = 51;
@@ -1208,7 +1245,7 @@ static int teei_client_init(void)
 		IMSG_ERROR("create teei log thread failed: %ld\n",
 						PTR_ERR(teei_log_task));
 		teei_log_task = NULL;
-		goto class_device_destroy;
+		goto teei_bdrv_destroy;
 	}
 
 	wake_up_process(teei_log_task);
@@ -1216,10 +1253,78 @@ static int teei_client_init(void)
 
 	IMSG_DEBUG("create the sub_thread successfully!\n");
 
-	teei_config_init();
+#if IS_ENABLED(CONFIG_MTK_TEE_GP_COORDINATOR)
+	register_gp_api();
+#endif
 
+	ret_code = teei_vfs_init();
+	if (ret_code != 0) {
+		IMSG_ERROR("Can NOT init the teei_vfs %d!\n", ret_code);
+		goto teei_log_destroy;
+	}
+
+	ret_code = teei_tee_init();
+	if (ret_code != 0) {
+		IMSG_ERROR("Can NOT init the teei_tee %d!\n", ret_code);
+		goto uninit_teei_vfs;
+	}
+
+	ret_code = soter_driver_init();
+	if (ret_code != 0) {
+		IMSG_ERROR("Can NOT init the soter_driver %d!\n", ret_code);
+		goto uninit_teei_tee;
+	}
+
+	ret_code = teei_keymaster_init();
+	if (ret_code != 0) {
+		IMSG_ERROR("Can NOT init the teei_keymaster %d!\n", ret_code);
+		goto uninit_soter_driver;
+	}
+
+	ret_code = teei_fp_init();
+	if (ret_code != 0) {
+		IMSG_ERROR("Can NOT init the teei_fp %d!\n", ret_code);
+		goto uninit_teei_keymaster;
+	}
+
+	ret_code = teei_config_init();
+	if (ret_code != 0) {
+		IMSG_ERROR("Can NOT init the teei_config %d!\n", ret_code);
+		goto uninit_teei_fp;
+	}
+
+	ret_code = init_sysfs(g_teei_pdev);
+	if (ret_code < 0) {
+		IMSG_ERROR("failed to init tz_driver sysfs %d!\n", ret_code);
+		goto uninit_teei_fp;
+	}
 	goto return_fn;
 
+uninit_teei_fp:
+	teei_fp_exit();
+
+uninit_teei_keymaster:
+	teei_keymaster_exit();
+
+uninit_soter_driver:
+	soter_driver_exit();
+
+uninit_teei_tee:
+	teei_tee_exit();
+
+uninit_teei_vfs:
+	teei_vfs_exit();
+
+teei_log_destroy:
+	kthread_stop(teei_log_task);
+
+teei_bdrv_destroy:
+	kthread_stop(teei_bdrv_task);
+
+teei_switch_destroy:
+	kthread_stop(teei_switch_task);
+del_cdev:
+	cdev_del(&teei_client_cdev);
 class_device_destroy:
 	device_destroy(driver_class, teei_client_device_no);
 class_destroy:
@@ -1230,7 +1335,7 @@ unregister_chrdev_region:
 del_pdev:
 	platform_device_del(tz_drv_state->tz_log_pdev);
 failed_alloc_dev:
-	platform_device_put(tz_drv_state->tz_log_pdev);
+	//platform_device_put(tz_drv_state->tz_log_pdev);
 	mutex_destroy(&tz_drv_state->smc_lock);
 	kfree(tz_drv_state);
 return_fn:
@@ -1243,6 +1348,19 @@ return_fn:
 static void teei_client_exit(void)
 {
 	IMSG_INFO("teei_client exit");
+
+	teei_fp_exit();
+	teei_keymaster_exit();
+	soter_driver_exit();
+	soter_driver_exit();
+	teei_vfs_exit();
+
+	kthread_stop(teei_log_task);
+	kthread_stop(teei_bdrv_task);
+	kthread_stop(teei_switch_task);
+
+	cdev_del(&teei_client_cdev);
+
 	device_destroy(driver_class, teei_client_device_no);
 	class_destroy(driver_class);
 	unregister_chrdev_region(teei_client_device_no, 1);
@@ -1250,7 +1368,7 @@ static void teei_client_exit(void)
 	if (tz_drv_state) {
 		tz_log_remove(tz_drv_state->tz_log_pdev);
 		platform_device_del(tz_drv_state->tz_log_pdev);
-		platform_device_put(tz_drv_state->tz_log_pdev);
+		//platform_device_put(tz_drv_state->tz_log_pdev);
 		mutex_destroy(&tz_drv_state->smc_lock);
 		kfree(tz_drv_state);
 	}

@@ -6,6 +6,8 @@
  * All rights reserved.
  * Copyright (c) 2015-2019, MICROTRUST Incorporated
  * All rights reserved.
+ * Copyright (c) 2017-2018, GNU General Public License
+ * All rights reserved.
  *
  */
 #ifndef TEE_CLIENT_API_H
@@ -323,7 +325,7 @@ struct TEEC_RegisteredMemoryReference {
  *
  * @param a  The first integer value.
  *
- * @param b  The second second value.
+ * @param b  The second value.
  */
 struct TEEC_Value {
 	uint32_t a;
