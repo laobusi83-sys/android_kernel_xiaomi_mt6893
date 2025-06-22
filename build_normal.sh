@@ -54,7 +54,7 @@ function zupload()
 {
     rm -rf AnyKernel    
     git clone --depth=1 https://github.com/AbzRaider/AnyKernel33 -b $DEVICE AnyKernel
-    cp out/arch/arm64/boot/Image.gz-dtb AnyKernel
+    cp out/arch/arm64/boot/Image.gz AnyKernel
     cd AnyKernel
     zip -r9 4.14.336-Test-OSS-KERNEL-$DEVICE-VIC.zip *
     cd ..
