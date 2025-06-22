@@ -27,16 +27,10 @@
 #include <kernel/sched/sched.h>
 #endif
 
-#if KERNEL_VERSION(4, 14, 0) <= LINUX_VERSION_CODE
 #include <uapi/linux/sched/types.h>
-#endif
 
 #ifdef CONFIG_MTPROF
-#if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
-#include <linux/bootprof.h>
-#else
-#include "bootprof.h"
-#endif /* KERNEL_VERSION */
+#include <bootprof.h>
 #endif /* CONFIG_MTPROF */
 
 #include <teei_client_main.h>
@@ -59,12 +53,7 @@
 #include "tz_log.h"
 
 #if (CONFIG_MICROTRUST_TZ_DRIVER_MTK_BOOTPROF && CONFIG_MTPROF)
-#if KERNEL_VERSION(4, 19, 0) <= LINUX_VERSION_CODE
 #define TEEI_BOOT_FOOTPRINT(str) bootprof_log_boot(str)
-#else
-#define TEEI_BOOT_FOOTPRINT(str) log_boot(str)
-#endif
-
 #else
 #define TEEI_BOOT_FOOTPRINT(str) IMSG_PRINTK("%s\n", str)
 #endif
@@ -82,7 +71,7 @@ DECLARE_SEMA(pm_sema, 0);
 DECLARE_COMPLETION(boot_decryto_lock);
 
 #ifndef CONFIG_MICROTRUST_DYNAMIC_CORE
-#define TZ_PREFER_BIND_CORE (7)
+#define TZ_PREFER_BIND_CORE (6)
 #endif
 
 #define TEEI_RT_POLICY			(0x01)
@@ -161,16 +150,6 @@ struct workqueue_struct *secure_wq;
 
 static int current_cpu_id;
 
-#ifndef CONFIG_MICROTRUST_DYNAMIC_CORE
-#if KERNEL_VERSION(4, 14, 0) >= LINUX_VERSION_CODE
-static int tz_driver_cpu_callback(struct notifier_block *nfb,
-		unsigned long action, void *hcpu);
-static struct notifier_block tz_driver_cpu_notifer = {
-	.notifier_call = tz_driver_cpu_callback,
-};
-#endif
-#endif
-
 unsigned long teei_config_flag;
 unsigned int soter_error_flag;
 unsigned long boot_vfs_addr;
@@ -207,17 +186,22 @@ static void *teei_cpu_write_owner;
 
 int teei_set_switch_pri(unsigned long policy)
 {
+#ifdef DYNAMIC_SET_PRIORITY
+	struct sched_param param = {.sched_priority = 50 };
 	int retVal = 0;
 
 	if (policy == TEEI_RT_POLICY) {
 		if (teei_switch_task != NULL) {
-			set_user_nice(teei_switch_task, MIN_NICE);
+			sched_setscheduler_nocheck(teei_switch_task,
+						SCHED_FIFO, &param);
 			return 0;
 		} else
 			return -EINVAL;
 	} else if (policy == TEEI_NORMAL_POLICY) {
 		if (teei_switch_task != NULL) {
-			set_user_nice(teei_switch_task, 0);
+			param.sched_priority = 0;
+			sched_setscheduler_nocheck(teei_switch_task,
+						SCHED_NORMAL, &param);
 			return 0;
 		} else
 			return -EINVAL;
@@ -228,6 +212,9 @@ int teei_set_switch_pri(unsigned long policy)
 	}
 
 	return retVal;
+#else
+	return 0;
+#endif
 }
 
 void teei_cpus_read_lock(void)
@@ -244,14 +231,18 @@ void teei_cpus_read_unlock(void)
 
 void teei_cpus_write_lock(void)
 {
+#ifdef ISEE_FP_SINGLE_CHANNEL
 	cpus_write_lock();
 	teei_cpu_write_owner = current;
+#endif
 }
 
 void teei_cpus_write_unlock(void)
 {
+#ifdef ISEE_FP_SINGLE_CHANNEL
 	teei_cpu_write_owner = NULL;
 	cpus_write_unlock();
+#endif
 }
 
 struct tz_driver_state *get_tz_drv_state(void)
@@ -289,17 +280,12 @@ int teei_move_cpu_context(int target_cpu_id, int original_cpu_id)
 	return 0;
 }
 
-void set_current_cpuid(int cpu)
-{
-	current_cpu_id = cpu;
-}
+#ifndef CONFIG_MICROTRUST_DYNAMIC_CORE
 
 int get_current_cpuid(void)
 {
 	return current_cpu_id;
 }
-
-#ifndef CONFIG_MICROTRUST_DYNAMIC_CORE
 
 static bool is_prefer_core(int cpu)
 {
@@ -390,7 +376,6 @@ int handle_switch_core(int cpu)
 	return 0;
 }
 
-#if KERNEL_VERSION(4, 14, 0) <= LINUX_VERSION_CODE
 static int nq_cpu_up_prep(unsigned int cpu)
 {
 #ifdef TEEI_SWITCH_BIG_CORE
@@ -441,58 +426,6 @@ static int nq_cpu_down_prep(unsigned int cpu)
 	}
 	return retVal;
 }
-
-#elif KERNEL_VERSION(3, 18, 0) <= LINUX_VERSION_CODE
-
-static int tz_driver_cpu_callback(struct notifier_block *self,
-		unsigned long action, void *hcpu)
-{
-	unsigned int cpu = (unsigned long)hcpu;
-	unsigned int sched_cpu = get_current_cpuid();
-
-	switch (action) {
-	case CPU_DOWN_PREPARE:
-	case CPU_DOWN_PREPARE_FROZEN:
-		if (cpu == sched_cpu) {
-			IMSG_DEBUG("cpu down prepare for %d.\n", cpu);
-			add_work_entry(SWITCH_CORE_TYPE, (unsigned long)cpu,
-						0, 0, 0);
-			teei_notify_switch_fn();
-			down(&pm_sema);
-		} else if (is_prefer_core(cpu))
-			IMSG_DEBUG("cpu down prepare for prefer %d.\n", cpu);
-		else if (!is_prefer_core_binded()
-				&& is_prefer_core_onlined()) {
-			IMSG_DEBUG("cpu down prepare for changing %d %d.\n",
-								sched_cpu, cpu);
-			add_work_entry(SWITCH_CORE_TYPE,
-					(unsigned long)sched_cpu, 0, 0, 0);
-			teei_notify_switch_fn();
-			down(&pm_sema);
-		}
-		break;
-
-#ifdef TEEI_SWITCH_BIG_CORE
-	case CPU_ONLINE:
-		if (cpu == TZ_PREFER_BIND_CORE) {
-			IMSG_DEBUG("cpu up: prepare for changing %d to %d.\n",
-					sched_cpu, cpu);
-			add_work_entry(SWITCH_CORE_TYPE,
-					(unsigned long)sched_cpu, 0, 0, 0);
-			teei_notify_switch_fn();
-			down(&pm_sema);
-		}
-
-		break;
-#endif
-
-	default:
-		break;
-	}
-	return NOTIFY_OK;
-}
-
-#endif
 #endif /* CONFIG_MICROTRUST_DYNAMIC_CORE */
 
 
@@ -718,12 +651,7 @@ EXPORT_SYMBOL(is_teei_ready);
 #ifdef TEEI_FIND_PREFER_CORE_AUTO
 int teei_get_max_freq(int cpu_index)
 {
-#if KERNEL_VERSION(4, 14, 0) <= LINUX_VERSION_CODE
 	return arch_max_cpu_freq(NULL, cpu_index);
-#elif KERNEL_VERSION(4, 4, 0) <= LINUX_VERSION_CODE
-	return arch_scale_get_max_freq(cpu_index);
-#endif
-	return 0;
 }
 #endif
 
@@ -1171,15 +1099,9 @@ static int teei_client_init(void)
 	wake_up_process(teei_switch_task);
 
 #ifndef CONFIG_MICROTRUST_DYNAMIC_CORE
-
-#if KERNEL_VERSION(4, 14, 0) <= LINUX_VERSION_CODE
 	cpuhp_setup_state_nocalls(CPUHP_AP_ONLINE_DYN,
 				"tee/teei:online",
 				nq_cpu_up_prep, nq_cpu_down_prep);
-#elif KERNEL_VERSION(3, 18, 0) <= LINUX_VERSION_CODE
-	register_cpu_notifier(&tz_driver_cpu_notifer);
-	IMSG_DEBUG("after  register cpu notify\n");
-#endif
 #endif /* CONFIG_MICROTRUST_DYNAMIC_CORE */
 
 	init_bdrv_comp_fn();
