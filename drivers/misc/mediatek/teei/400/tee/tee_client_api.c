@@ -41,7 +41,7 @@ static inline long ioctl(struct file *filp, unsigned int cmd, void *arg)
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
 
-	ret = tee_ioctl(filp, cmd, (unsigned long)arg);
+        ret = tee_ioctl(filp, cmd, (unsigned long)arg);
 
 	set_fs(old_fs);
 
@@ -71,7 +71,7 @@ static struct file *teec_open_dev(const char *devname, const char *capabilities)
 	struct tee_ioctl_set_hostname_arg arg;
 	int err;
 
-	file = kzalloc(sizeof(struct file), GFP_KERNEL);
+        file = kzalloc(sizeof(struct file), GFP_KERNEL);
 	if (file == NULL) {
 		IMSG_ERROR("No memory for struct file!\n");
 		return NULL;
@@ -119,18 +119,12 @@ TEEC_Result TEEC_InitializeContext(const char *name, struct TEEC_Context *ctx)
 	char devname[128];
 	struct file *fd;
 	size_t n;
-	int ret = 0;
 
 	if (!ctx)
 		return TEEC_ERROR_BAD_PARAMETERS;
 
 	for (n = 0; n < TEEC_MAX_DEV_SEQ; n++) {
-		ret = snprintf(devname, sizeof(devname), "/dev/isee_tee%zu", n);
-		if (ret <= 0) {
-			IMSG_ERROR("snprintf failed ret = %d\n", ret);
-			continue;
-		}
-
+		snprintf(devname, sizeof(devname), "/dev/isee_tee%zu", n);
 		fd = teec_open_dev(devname, name);
 		if (!IS_ERR_OR_NULL(fd)) {
 			ctx->fd = fd;
@@ -140,9 +134,7 @@ TEEC_Result TEEC_InitializeContext(const char *name, struct TEEC_Context *ctx)
 
 	return TEEC_ERROR_ITEM_NOT_FOUND;
 }
-#if !IS_ENABLED(CONFIG_MTK_TEE_GP_COORDINATOR)
 EXPORT_SYMBOL(TEEC_InitializeContext);
-#endif
 
 void TEEC_FinalizeContext(struct TEEC_Context *ctx)
 {
@@ -152,9 +144,7 @@ void TEEC_FinalizeContext(struct TEEC_Context *ctx)
 		ctx->fd = NULL;
 	}
 }
-#if !IS_ENABLED(CONFIG_MTK_TEE_GP_COORDINATOR)
 EXPORT_SYMBOL(TEEC_FinalizeContext);
-#endif
 
 static TEEC_Result teec_pre_process_tmpref(struct TEEC_Context *ctx,
 			uint32_t param_type,
@@ -540,9 +530,7 @@ out:
 		*ret_origin = eorig;
 	return res;
 }
-#if !IS_ENABLED(CONFIG_MTK_TEE_GP_COORDINATOR)
 EXPORT_SYMBOL(TEEC_OpenSession);
-#endif
 
 void TEEC_CloseSession(struct TEEC_Session *session)
 {
@@ -556,9 +544,7 @@ void TEEC_CloseSession(struct TEEC_Session *session)
 		IMSG_ERROR("Failed to close session 0x%x",
 				session->session_id);
 }
-#if !IS_ENABLED(CONFIG_MTK_TEE_GP_COORDINATOR)
 EXPORT_SYMBOL(TEEC_CloseSession);
-#endif
 
 TEEC_Result TEEC_InvokeCommand(struct TEEC_Session *session, uint32_t cmd_id,
 		struct TEEC_Operation *operation, uint32_t *error_origin)
@@ -622,9 +608,7 @@ out:
 		*error_origin = eorig;
 	return res;
 }
-#if !IS_ENABLED(CONFIG_MTK_TEE_GP_COORDINATOR)
 EXPORT_SYMBOL(TEEC_InvokeCommand);
-#endif
 
 void TEEC_RequestCancellation(struct TEEC_Operation *operation)
 {
@@ -649,9 +633,7 @@ void TEEC_RequestCancellation(struct TEEC_Operation *operation)
 	if (ret)
 		IMSG_ERROR("TEE_IOC_CANCEL: %d", ret);
 }
-#if !IS_ENABLED(CONFIG_MTK_TEE_GP_COORDINATOR)
 EXPORT_SYMBOL(TEEC_RequestCancellation);
-#endif
 
 TEEC_Result TEEC_RegisterSharedMemory(struct TEEC_Context *ctx,
 					struct TEEC_SharedMemory *shm)
@@ -671,12 +653,12 @@ TEEC_Result TEEC_RegisterSharedMemory(struct TEEC_Context *ctx,
 		s = 8;
 
 	tee_ctx = ctx->fd->private_data;
-
 	mutex_lock(&tee_ctx->mutex);
 
-	tee_shm = isee_shm_kalloc(tee_ctx, s, TEE_SHM_DMA_KERN_BUF | TEE_SHM_MAPPED);
-	if (IS_ERR(shm)) {
-		IMSG_ERROR("%s:%d Failed to get tee_shm!\n", __func__, __LINE__);
+	tee_shm = isee_shm_kalloc(tee_ctx, s,
+				TEE_SHM_DMA_KERN_BUF | TEE_SHM_MAPPED);
+	if (IS_ERR(tee_shm)) {
+		IMSG_ERROR("%s Failed to get tee_shm!\n", __func__);
 		mutex_unlock(&tee_ctx->mutex);
 		return TEEC_ERROR_GENERIC;
 	}
@@ -691,9 +673,7 @@ TEEC_Result TEEC_RegisterSharedMemory(struct TEEC_Context *ctx,
 
 	return TEEC_SUCCESS;
 }
-#if !IS_ENABLED(CONFIG_MTK_TEE_GP_COORDINATOR)
 EXPORT_SYMBOL(TEEC_RegisterSharedMemory);
-#endif
 
 TEEC_Result TEEC_RegisterSharedMemoryFileDescriptor(struct TEEC_Context *ctx,
 						struct TEEC_SharedMemory *shm,
@@ -722,9 +702,7 @@ TEEC_Result TEEC_RegisterSharedMemoryFileDescriptor(struct TEEC_Context *ctx,
 	shm->size = data.size;
 	return TEEC_SUCCESS;
 }
-#if !IS_ENABLED(CONFIG_MTK_TEE_GP_COORDINATOR)
 EXPORT_SYMBOL(TEEC_RegisterSharedMemoryFileDescriptor);
-#endif
 
 TEEC_Result TEEC_AllocateSharedMemory(struct TEEC_Context *ctx,
 					struct TEEC_SharedMemory *shm)
@@ -747,9 +725,10 @@ TEEC_Result TEEC_AllocateSharedMemory(struct TEEC_Context *ctx,
 
 	mutex_lock(&tee_ctx->mutex);
 
-	tee_shm = isee_shm_kalloc(tee_ctx, s, TEE_SHM_DMA_KERN_BUF | TEE_SHM_MAPPED);
-	if (IS_ERR(shm)) {
-		IMSG_ERROR("%s:%d Failed to get tee_shm!\n", __func__, __LINE__);
+	tee_shm = isee_shm_kalloc(tee_ctx, s,
+			TEE_SHM_DMA_KERN_BUF | TEE_SHM_MAPPED);
+	if (IS_ERR(tee_shm)) {
+		IMSG_ERROR("%s Failed to get tee_shm!\n", __func__);
 		mutex_unlock(&tee_ctx->mutex);
 		return TEEC_ERROR_GENERIC;
 	}
@@ -765,9 +744,7 @@ TEEC_Result TEEC_AllocateSharedMemory(struct TEEC_Context *ctx,
 
 	return TEEC_SUCCESS;
 }
-#if !IS_ENABLED(CONFIG_MTK_TEE_GP_COORDINATOR)
 EXPORT_SYMBOL(TEEC_AllocateSharedMemory);
-#endif
 
 void TEEC_ReleaseSharedMemory(struct TEEC_SharedMemory *shm)
 {
@@ -792,38 +769,5 @@ void TEEC_ReleaseSharedMemory(struct TEEC_SharedMemory *shm)
 	shm->registered_fd = -1;
 
 	mutex_unlock(&tee_ctx->mutex);
-
 }
-#if !IS_ENABLED(CONFIG_MTK_TEE_GP_COORDINATOR)
 EXPORT_SYMBOL(TEEC_ReleaseSharedMemory);
-#endif
-
-#if IS_ENABLED(CONFIG_MTK_TEE_GP_COORDINATOR)
-#include "tee_impl_api.h"
-static const struct gp_api_impl_info microtrust_gp_api_export_info = {
-	.name = "microtrust 400",
-	.size = {
-		.sharedmemory_max = TEEC_CONFIG_SHAREDMEM_MAX_SIZE,
-		.context          = sizeof(struct TEEC_Context),
-		.session          = sizeof(struct TEEC_Session),
-		.sharedmemory     = sizeof(struct TEEC_SharedMemory),
-		.operation        = sizeof(struct TEEC_Operation),
-	},
-	.ops = {
-		.initializecontext    = &TEEC_InitializeContext,
-		.finalizecontext      = &TEEC_FinalizeContext,
-		.registersharedmemory = &TEEC_RegisterSharedMemory,
-		.allocatesharedmemory = &TEEC_AllocateSharedMemory,
-		.releasesharedmemory  = &TEEC_ReleaseSharedMemory,
-		.opensession          = &TEEC_OpenSession,
-		.closesession         = &TEEC_CloseSession,
-		.invokecommand        = &TEEC_InvokeCommand,
-		.requestcancellation  = &TEEC_RequestCancellation,
-	},
-};
-
-bool register_gp_api(void)
-{
-	return gp_api_impl_add(&microtrust_gp_api_export_info);
-}
-#endif
