@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2016 MediaTek Inc.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __SMI_PORT_H__
 #define __SMI_PORT_H__
 
-#include <dt-bindings/memory/mt6853-larb-port.h>
+#include <dt-bindings/memory/mt6833-larb-port.h>
 
 #define SMI_OSTD_MAX		(0x3f)
 
