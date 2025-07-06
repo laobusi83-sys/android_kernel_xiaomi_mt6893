@@ -101,7 +101,7 @@ function zupload()
 {
     rm -rf AnyKernel
     git clone --depth=1 https://github.com/AbzRaider/AnyKernel33 -b $DEVICE AnyKernel
-    mkdir AnyKernel/modules/system/vendor/lib/modules
+    mkdir -p AnyKernel/modules/system/vendor/lib/modules
     find out -type f -name "*.ko" -exec cp -f {} AnyKernel/modules/system/vendor/lib/modules \;
     
     if [ "$DEVICE" = "agate" ]; then
