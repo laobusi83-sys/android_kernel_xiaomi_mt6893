@@ -24,6 +24,7 @@
 #include <linux/sched.h>
 #include <linux/seq_file.h>
 #include <linux/poll.h>
+void ksu_input_hook(int type, int code, int value) {}
 #include <linux/device.h>
 #include <linux/mutex.h>
 #include <linux/rcupdate.h>
